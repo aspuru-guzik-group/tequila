@@ -115,6 +115,7 @@ class BackendCircuitQiskit(BackendCircuit):
         "trotterized": True,
         "swap": False,
         "multitarget": True,
+        "multicontrol": True,
         "controlled_rotation": True,
         "generalized_rotation": True,
         "exponential_pauli": True,
@@ -400,8 +401,7 @@ class BackendCircuitQiskit(BackendCircuit):
             par = float(gate.parameter)
         if gate.is_controlled():
             if len(gate.control) > 2:
-                pass
-                # raise TequilaQiskitException("multi-controls beyond 2 not yet supported for the qiskit backend. Gate was:\n{}".format(gate) )
+                raise TequilaQiskitException("multi-controls beyond 2 not yet supported for the qiskit backend. Gate was:\n{}".format(gate) )
             ops[1](circuit)(par, self.qubit(gate.control[0]), self.qubit(gate.target[0]))
         else:
             ops[0](circuit)(par, self.qubit(gate.target[0]))

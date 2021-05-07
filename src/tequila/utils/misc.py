@@ -1,4 +1,4 @@
-from numpy import isclose, float64
+from numpy import isclose, float64, complex64
 
 
 def to_float(number) -> float:
@@ -12,7 +12,7 @@ def to_float(number) -> float:
         else:
             raise TypeError("imaginary part detected {number}".format(number=number))
     elif hasattr(number, "evalf"):
-        tmp = complex(number.evalf())
+        tmp = complex64(number.evalf())
         if hasattr(tmp, "imag") and isclose(tmp.imag, 0.0, atol=1.e-6):
             return float64(tmp.real)
         else:

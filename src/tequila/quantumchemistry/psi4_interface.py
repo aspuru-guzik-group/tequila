@@ -222,6 +222,16 @@ class QuantumChemistryPsi4(QuantumChemistryBase):
         self.orbitals_by_irrep = orbitals_by_irrep
 
         if active_orbitals is not None:
+            if not hasattr(active_orbitals, "keys"):
+                # assume we have been given a list of orbitals instead of a dictionary with irreps
+                active_dict = {}
+                for x in active_orbitals:
+                    orbital = self.orbitals[x]
+                    if orbital.irrep not in active_dict:
+                        active_dict[orbital.irrep] = [orbital.idx_irrep]
+                    else:
+                        active_dict[orbital.irrep] += [orbital.idx_irrep]
+                active_orbitals = active_dict
             self.active_space = self._make_psi4_active_space_data(active_orbitals=active_orbitals, reference=reference)
             # need to recompute
             # (psi4 won't take over active space information otherwise)

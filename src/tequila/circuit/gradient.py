@@ -34,6 +34,9 @@ def grad(objective: typing.Union[Objective,VectorObjective], variable: Variable 
     else:
         variable = assign_variable(variable)
 
+    if variable not in objective.extract_variables():
+        return 0.0
+
     if no_compile:
         compiled = objective
     else:
@@ -195,7 +198,8 @@ def __grad_expectationvalue(E: ExpectationValueImpl, variable: Variable):
 
     hamiltonian = E.H
     unitary = E.U
-    assert (unitary.verify())
+    if not (unitary.verify()):
+        raise TequilaException("error in grad_expectationvalue unitary is {}".format(unitary))
 
     # fast return if possible
     if variable not in unitary.extract_variables():

@@ -57,7 +57,8 @@ class Compiler:
                  gradient_mode=False,
                  ry_gate=False,
                  y_gate=False,
-                 ch_gate=False
+                 ch_gate=False,
+                 hadamard=False
                  ):
 
         """
@@ -110,6 +111,7 @@ class Compiler:
         self.exponential_pauli = exponential_pauli
         self.controlled_exponential_pauli = controlled_exponential_pauli
         self.hadamard_power = hadamard_power
+        self.hadamard = hadamard
         self.controlled_power = controlled_power
         self.power = power
         self.toffoli = toffoli
@@ -256,6 +258,7 @@ class Compiler:
                 gatelist += abstract_circuit._parameter_map[variable]
 
         compiled_gates = []
+
         for idx, gate in gatelist:
 
             cg = gate
@@ -266,7 +269,11 @@ class Compiler:
                 continue
             else:
                 if hasattr(cg, "compile"):
-                    cg = cg.compile()
+                    cg = QCircuit.wrap_gate(cg.compile())
+                    for g in cg.gates:
+                        if g.is_controlled():
+                            controlled = True
+
 
             # order matters
             # first the real multi-target gates
@@ -278,9 +285,6 @@ class Compiler:
                 cg = compile_exponential_pauli_gate(gate=cg)
             if self.swap:
                 cg = compile_swap(gate=cg)
-            if self.multicontrol:
-                raise NotImplementedError("Multicontrol compilation does not work yet")
-
             if self.phase_to_z:
                 cg = compile_phase_to_z(gate=cg)
             if self.power:
@@ -294,7 +298,7 @@ class Compiler:
             if self.ry_gate:
                 cg = compile_ry(gate=cg, controlled_rotation=self.controlled_rotation)
             if controlled:
-                if self.cc_max:
+                if self.cc_max or self.multicontrol:
                     cg = compile_to_single_control(gate=cg)
                 if self.controlled_exponential_pauli:
                     cg = compile_exponential_pauli_gate(gate=cg)
@@ -398,8 +402,10 @@ def change_basis(target, axis=None, name=None, daggered=False):
     if isinstance(axis, str):
         axis = RotationGateImpl.string_to_axis[axis.lower()]
 
-    if axis == 0:
-        return H(target=target)
+    if axis == 0 and daggered:
+        return Ry(angle=numpy.pi / 2, target=target)
+    elif axis == 0:
+        return Ry(angle=-numpy.pi / 2, target=target)
     elif axis == 1 and daggered:
         return Rx(angle=-numpy.pi / 2, target=target)
     elif axis == 1:
@@ -407,17 +413,14 @@ def change_basis(target, axis=None, name=None, daggered=False):
     else:
         return QCircuit()
 
-
 @compiler
-def compile_multitarget(gate, variables=None) -> QCircuit:
+def compile_multitarget(gate, *args, **kwargs) -> QCircuit:
     """
     If a gate is 'trivially' multitarget, split it into single target gates.
     Parameters
     ----------
     gate:
         the gate in question
-    variables:
-        Todo: Jakob plz write
 
     Returns
     -------
@@ -856,9 +859,7 @@ def compile_exponential_pauli_gate(gate) -> QCircuit:
 
 
 def do_compile_trotterized_gate(generator, steps, factor, randomize, control):
-    """
-    Todo: Jakob, plz write
-    """
+
     assert (generator.is_hermitian())
     circuit = QCircuit()
     factor = factor / steps
@@ -881,7 +882,6 @@ def do_compile_trotterized_gate(generator, steps, factor, randomize, control):
 @compiler
 def compile_generalized_rotation_gate(gate, compile_exponential_pauli: bool = False):
     """
-    Todo: Jakob, plz write
     Parameters
     ----------
     gate
@@ -914,28 +914,13 @@ def compile_trotterized_gate(gate, compile_exponential_pauli: bool = False):
     -------
 
     """
-    if not hasattr(gate, "generators") or not hasattr(gate, "steps"):
+    if not hasattr(gate, "steps") or hasattr(gate, "eigenvalues_magnitude"):
         return QCircuit.wrap_gate(gate)
 
-    c = 1.0
-    result = QCircuit()
-    if gate.join_components:
-        for step in range(gate.steps):
-            if gate.randomize_component_order:
-                numpy.random.shuffle(gate.generators)
-            for i, g in enumerate(gate.generators):
-                if gate.angles is not None:
-                    c = gate.angles[i]
-                result += do_compile_trotterized_gate(generator=g, steps=1, factor=c / gate.steps,
-                                                      randomize=gate.randomize, control=gate.control)
-    else:
-        if gate.randomize_component_order:
-            numpy.random.shuffle(gate.generators)
-        for i, g in enumerate(gate.generators):
-            if gate.angles is not None:
-                c = gate.angles[i]
-            result += do_compile_trotterized_gate(generator=g, steps=gate.steps, factor=c, randomize=gate.randomize,
-                                                  control=gate.control)
+    randomize=False
+    if hasattr(gate, "randomize"):
+        randomize=gate.randomize
+    result = do_compile_trotterized_gate(generator=gate.generator, steps=gate.steps, factor=gate.parameter, randomize=randomize, control=gate.control)
 
     if compile_exponential_pauli:
         return compile_exponential_pauli_gate(result)

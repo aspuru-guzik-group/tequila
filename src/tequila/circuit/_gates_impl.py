@@ -75,9 +75,9 @@ class QGateImpl:
         """
         :return: return the hermitian conjugate of the gate.
         """
-
-        return QGateImpl(name=copy.copy(self.name), target=self.target,
-                         control=self.control, generator=-self.generator)
+        result=copy.deepcopy(self)
+        result.generator *= -1.0
+        return result
 
     def is_controlled(self) -> bool:
         """
@@ -154,6 +154,8 @@ class QGateImpl:
         if hasattr(self, "generators"):
             mapped.generators = [i.map_qubits(qubit_map=qubit_map) for i in self.generators]
         mapped.finalize()
+        if hasattr(self, "generator"):
+            mapped.generator = self.generator.map_qubits(qubit_map=qubit_map)
         return mapped
 
 class ParametrizedGateImpl(QGateImpl, ABC):
@@ -328,7 +330,13 @@ class PowerGateImpl(ParametrizedGateImpl):
     def power(self):
         return self.parameter/pi
 
-    def __init__(self, name, target: list, power, control: list = None, generator: QubitHamiltonian = None):
+    def __init__(self, name, generator: QubitHamiltonian,  target: list, power, control: list = None):
+        if generator is None:
+            assert name is not None and name.upper() in ["X", "Y", "Z"]
+            generator = QubitHamiltonian.from_string("{}({})".format(name.upper(), target))
+        if name is None:
+            assert generator is not None
+            name = str(generator)
         super().__init__(name=name, parameter=power * pi, target=target, control=control, generator=generator)
 
 
@@ -384,60 +392,32 @@ class ExponentialPauliGateImpl(DifferentiableGateImpl):
         mapped.paulistring = self.paulistring.map_qubits(qubit_map)
         return mapped
 
-@dataclass
-class TrotterParameters:
-    threshold: float = 0.0
-    join_components: bool = True
-    randomize_component_order: bool = False
-    randomize: bool = False
 
+class TrotterizedGateImpl(ParametrizedGateImpl):
 
-class TrotterizedGateImpl(QGateImpl):
-
-    def is_parametrized(self) -> bool:
-        return True
-
-    def extract_variables(self) -> typing.Dict[str, numbers.Number]:
-        tmp = []
-        for angle in self.angles:
-            if hasattr(angle, "extract_variables"):
-                tmp += angle.extract_variables()
-        return list(set(tmp))
-
-    @property
-    def angles(self):
-        return self._parameter
-
-    @angles.setter
-    def angles(self, other):
-        self._parameter = other
-
-    def __init__(self, generators: typing.Union[QubitHamiltonian, typing.List[QubitHamiltonian]],
+    def __init__(self, generator: QubitHamiltonian,
+                 angle: typing.Union[numbers.Real, Variable],
                  steps: int = 1,
-                 angles: typing.Union[list, numbers.Real, Variable] = None,
                  control: typing.Union[list, int] = None,
                  threshold: numbers.Real = 0.0,
-                 join_components: bool = True,
-                 randomize_component_order: bool = True,
-                 randomize: bool = True):
+                 randomize: bool = True, **kwargs):
         """
         :param generators: list of generators
         :param angles: coefficients for each generator
         :param steps: Trotter Steps
         :param control: control qubits
         :param threshold: neglect terms in the given Hamiltonians if their coefficients are below this threshold
-        :param join_components: The generators are trotterized together. If False the first generator is trotterized, then the second etc
         Note that for steps==1 as well as len(generators)==1 this has no effect
-        :param randomize_component_order: randomize the order in the generators order before trotterizing
-        :param randomize: randomize the trotter decomposition of each generator
+        :param randomize: randomize the trotter decomposition of the PauliStrings in the generator
         """
-        super().__init__(name="Trotterized", target=self.extract_targets(generators), control=control)
-        self.generators = list_assignment(generators)
-        self._parameter = angles
+
+        assert angle is not None
+        assert generator is not None
+
+        super().__init__(name="Trotterized", target=self.extract_targets(generator), control=control, generator=generator, parameter=angle)
+        self._parameter = angle
         self.steps = steps
         self.threshold = threshold
-        self.join_components = join_components
-        self.randomize_component_order = randomize_component_order
         self.randomize = randomize
         self.finalize()
 
@@ -446,23 +426,15 @@ class TrotterizedGateImpl(QGateImpl):
         if not self.is_single_qubit_gate():
             result += ", control=" + str(self.control)
 
-        result += ", angles=" + str(self.angles)
-        result += ", generators=" + str(self.generators)
+        result += ", angle=" + str(self.angle)
+        result += ", generator=" + str(self.generator)
         result += ")"
         return result
 
     @staticmethod
-    def extract_targets(generators):
+    def extract_targets(generator):
         targets = []
-        for g in generators:
-            for ps in g.paulistrings:
-                targets += [k for k in ps.keys()]
+        for ps in generator.paulistrings:
+            targets += [k for k in ps.keys()]
         return tuple(set(targets))
 
-    def dagger(self):
-        result = copy.deepcopy(self)
-        angles = []
-        for angle in self.angles:
-            angles.append(-angle)
-        result.angles = angles
-        return result

@@ -39,8 +39,10 @@ def test_qubit_map():
                 assert U2.gates[i].__dict__[k] == v
 
     for gate in [Trotterized]:
-        U1 = gate(generators=[paulis.X(0) + paulis.Y(0)*paulis.Z(1), paulis.Z(3)*paulis.Z(4)], angles=["a", "b"], control=2, steps=1)
-        U2 = gate(generators=[paulis.X(1) + paulis.Y(1)*paulis.Z(2), paulis.Z(4)*paulis.Z(5)], angles=["a", "b"], control=0, steps=1)
+        U1 = gate(generator=paulis.X(0) + paulis.Y(0)*paulis.Z(1), angle="a", control=2, steps=1)
+        U1 += gate(generator=paulis.Z(3)*paulis.Z(4), angle="b", control=2, steps=1)
+        U2 = gate(generator=paulis.X(1) + paulis.Y(1)*paulis.Z(2), angle="a", control=0, steps=1)
+        U2 += gate(generator=paulis.Z(4)*paulis.Z(5), angle="b", control=0)
         mapped = U1.map_qubits(qubit_map={0:1, 1:2, 3:4, 4:5, 2:0})
         assert len(mapped.gates) == len(U2.gates)
         for i in range(len(mapped.gates)):

@@ -1,6 +1,7 @@
 import numpy
 from tequila.objective import format_variable_dictionary
 from tequila.tools.qng import evaluate_qng
+import sys
 """
 Define Containers for SciPy usage
 """
@@ -75,6 +76,7 @@ class _EvalContainer:
         if self.save_history:
             self.history.append(E)
             self.history_angles.append(angles)
+        sys.stdout.flush()
         return numpy.float64(E)  # jax types confuses optimizers
 
 

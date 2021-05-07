@@ -18,11 +18,13 @@ class QuantumChemistryPySCF(QuantumChemistryBase):
 
         super().__init__(parameters=parameters, transformation=transformation, *args, **kwargs)
 
-    def from_tequila(self, molecule, transformation=None, *args, **kwargs):
+    @classmethod
+    def from_tequila(cls, molecule, transformation=None, *args, **kwargs):
         c, h1, h2 = molecule.get_integrals(two_body_ordering="openfermion")
-        return type(self)(constant_part=c,
+        return cls(nuclear_repulsion=c,
                           one_body_integrals=h1,
                           two_body_integrals=h2,
+                          n_electrons=molecule.n_electrons,
                           transformation=transformation,
                           parameters=molecule.parameters, *args, **kwargs)
 

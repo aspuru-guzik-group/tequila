@@ -398,7 +398,6 @@ def test_qubit_excitations(backend):
     wfn1 = tq.simulate(U1, backend=backend)
     wfn2 = tq.simulate(U2, backend=backend)
     F = numpy.abs(wfn1.inner(wfn2)) ** 2
-
     assert numpy.isclose(F, 1.0, 1.e-4)
 
     U1 = tq.gates.X([0, 1, 2, 3]) + tq.gates.QubitExcitation(angle=numpy.pi / 2, target=[0, 4, 1, 5, 2, 6, 3, 7])
@@ -406,7 +405,9 @@ def test_qubit_excitations(backend):
     wfn1 = tq.simulate(U1, backend=backend)
     wfn2 = tq.simulate(U2, backend=backend)
     F = numpy.abs(wfn1.inner(wfn2)) ** 2
-
+    print(wfn1)
+    print(wfn2)
+    print(tq.compile(U1, backend=backend).abstract_circuit)
     assert numpy.isclose(F, 1.0, 1.e-4)
 
     q = [5, 3, 7, 8, 2, 9, 2, 4]
